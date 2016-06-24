@@ -1,3 +1,9 @@
+' Fix the bug with the flashing. Fixed!!!
+' Total session length is resetting, it shouldn't. Fixed !!!
+' Make sure avg number of interruptions works.  Appears to work!!!
+' Average bit rate is not changing. Need to fix.  Appears to work!!!
+' Remove bottom line.  Make the line appear when the event is triggered.
+' Title is not showing up properly
 Sub RunUserInterface()
     o = Setup()
     o.setup()
@@ -38,13 +44,15 @@ Sub Setup() As Object
         totalNumOfInterruptions: "0"
         timeElapsedBetweenInterruptions: "0"
         timeOfLastBuffer: "No Buffering Yet"
-        allBufferEvents: "0 ms"
+        totalBufferEvents: "-1"
         avgAllBufferEvents: "0 ms"
+        bufferTimeTotal: 0
         numOfBitrateChanges: 0
         bitRateTotal: 0
         avgBitRate: "0"
 		    drawtext:  false
         eventloop: EventLoop
+        bufferEventsExist: false
     }
 
     this.targetRect = this.canvas.GetCanvasRect()
@@ -76,6 +84,8 @@ Sub EventLoop()
     diagClockLocal = CreateObject("roDateTime")
     diagClockLocal.ToLocalTime()
     diagTimer = CreateObject("roTimespan")
+    diagTotalTimer = CreateObject("roTimespan")
+    bufferTimer = CreateObject("roTimespan")
 
     timeElapsedBeforePlayback = ""
 
@@ -102,15 +112,19 @@ Sub EventLoop()
         msg = wait(0, m.port)
           m.paint()
           ' ? msg " message ************************"
-          m.totalSessionTime = diagTimer.TotalMilliseconds()
+          m.totalSessionTime = diagTotalTimer.TotalMilliseconds()
           m.totalSessionTime = itostr(m.totalSessionTime)
           ' ? m.totalSessionTime " session time"
 
 
-          if m.passTitle <> invalid
-            m.title = m.passTitle
-            ' ? m.title " title **********"
-          end if
+
+          '   textArr2 = m.create_playlist_text()
+          '  for each str in textArr2
+          '      if index = m.playing
+          '        ? m.playing " playing *******************"
+          '      end if
+          '  end for
+           m.title = m.passTitle
 
           if msg.isStatusMessage()
               playStatusMessage = msg.GetMessage()
@@ -128,20 +142,42 @@ Sub EventLoop()
               m.bitRate = m.bitRate.ToInt()
               m.bitRate = msg.getInfo().MeasuredBitrate
               m.numOfBitrateChanges += 1
+              ' ? m.numOfBitrateChanges " bit rate changes ***********************"
               m.bitRateTotal += m.bitRate
               m.avgBitRate = m.bitRateTotal / m.numOfBitrateChanges
               m.avgBitRate = itostr(m.avgBitRate)
               m.bitRate = itostr(m.bitRate)
+              ' ? m.bitRate " bit rate **********************************"
               diagTimer.Mark()
               ? " stream started"
               ? m.timeStampGMT
-                if msg.GetInfo().IsUnderrun
-                    ' buffer event here'
-                end if
+              if msg.GetInfo().IsUnderrun
+              end if
             end if
             m.timeWithoutInterruption = diagTimer.TotalMilliseconds()
             m.timeWithoutInterruption = itostr(m.timeWithoutInterruption)
             ' ? m.timeWithoutInterruption " time "
+
+            if m.progress < 100
+                  if m.progress = 0
+                    buffering = true
+                    bufferTimer.Mark()
+                    m.totalBufferEvents = m.totalBufferEvents.ToInt()
+                    m.totalBufferEvents += 1
+                    m.totalBufferEvents = m.totalBufferEvents.ToStr()
+                  end if
+                  ' ? m.totalBufferEvents " buffer events *******************"
+                ' ? m.progress " progress ********************************"
+            else if  buffering = 100
+                m.timeOfLastBuffer = bufferTimer.TotalMilliseconds()
+                ? m.timeOfLastBuffer " buffer time"
+                m.bufferTimeTotal += m.timeOfLastBuffer
+                m.avgAllBufferEvents = m.bufferTimeTotal / m.totalBufferEvents.ToInt()
+                ? m.avgAllBufferEvents " all buffer events average *********************"
+                buffering = false
+                m.avgAllBufferEvents = m.avgAllBufferEvents.tostr()
+                m.timeOfLastBuffer = bufferTimer.TotalMilliseconds().tostr()
+            end if
 
             if msg.isPaused()
               ? " paused  "
@@ -149,7 +185,7 @@ Sub EventLoop()
               m.timeElapsedBetweenInterruptions = diagTimer.TotalMilliseconds()
               ' ? timeForTest " time test *************************"
               m.beforeFirstVideoInterruption = diagTimer.TotalMilliseconds()
-              m.beforeFirstVideoInterruption = itostr(m.beforeFirstVideoInterruption)
+              m.beforeFirstVideoInterruption = itostr(m.beforeFirstVideoInterruption) + " ms"
               ' ? " Time since last interruption " m.beforeFirstVideoInterruption
               ' stamp = diagTimer.TotalMilliseconds()
               diagClockGMT2 = CreateObject("roDateTime")
@@ -187,8 +223,6 @@ Sub EventLoop()
               ' ? m.avgBetweenInterruptions " interruption avg"
             end if
             timeBeforeInterruption = stamp2
-
-'                   Time elapsed between interruption event <2> and <1>: eg. 300ms
 
 
         if msg <> invalid
@@ -375,32 +409,32 @@ Sub PaintFullscreenCanvas()
              TargetRect:{x:40,y:150,w:800,h:60}
          },
          {
-             Text: "Total Session length: " + m.totalSessionTime + " ms    | "
+             Text: "Total Session length: " + m.totalSessionTime + " ms    "
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
              TargetRect:{x:40,y:200,w:800,h:60}
          },
          {
-             Text: "Time Without Interruption: " + m.timeWithoutInterruption + " ms"
+             Text: "  |       Time Without Interruption: " + m.timeWithoutInterruption + " ms"
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
              TargetRect:{x:440,y:200,w:800,h:60}
          },
          {
-             Text: "Bit Rate: " + m.bitRate + " bits per second   |  "
+             Text: "Current Bit Rate: " + m.bitRate + " bits per second   "
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
              TargetRect:{x:40,y:250,w:800,h:60}
          },
          {
-             Text: "Avg Bit Rate: " + m.avgBitRate
+             Text: "  |       Avg Bit Rate: " + m.avgBitRate
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
-             TargetRect:{x:440,y:250,w:800,h:60}
+             TargetRect:{x:520,y:250,w:800,h:60}
          },
          {
              Text: "TimeStamp of last interruption: " + m.timeOfLastInterruption
@@ -410,14 +444,14 @@ Sub PaintFullscreenCanvas()
              TargetRect:{x:40,y:300,w:800,h:60}
          },
          {
-             Text: "Time since last interruption: " + m.beforeFirstVideoInterruption + " ms"
+             Text: "Length of last interruption: " + m.beforeFirstVideoInterruption
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
              TargetRect:{x:40,y:350,w:800,h:60}
          },
          {
-             Text: "Total Number of interruption: " + m.totalNumOfInterruptions
+             Text: "Total Number of interruptions: " + m.totalNumOfInterruptions
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
@@ -445,12 +479,12 @@ Sub PaintFullscreenCanvas()
              TargetRect:{x:40,y:550,w:800,h:60}
          },
          {
-             Text: "Total of all Buffering Events: " + m.allBufferEvents
+             Text: "Total of all Buffering Events: " + m.totalBufferEvents
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
              HAlign:"Left", VAlign:"VCenter",
              Direction:"LeftToRight"}
              TargetRect:{x:40,y:600,w:800,h:60}
-         },
+         }
          {
              Text: "Average of all Buffering Events: " + m.avgAllBufferEvents
              TextAttrs:{Color:"#FFCCCCCC", Font:"Medium",
@@ -461,16 +495,25 @@ Sub PaintFullscreenCanvas()
      ]
 	endif
 
+
     'Clear previous contents
-    m.canvas.ClearLayer(0)
-    m.canvas.ClearLayer(1)
-    m.canvas.ClearLayer(2)
+    ' m.canvas.ClearLayer(0)
+    ' m.canvas.ClearLayer(1)
+    ' m.canvas.ClearLayer(2)
+
     m.canvas.SetLayer(0, { Color: color, CompositionMode: "Source" })
     if (splash.Count() > 0)
         m.canvas.SetLayer(1, splash)
         m.canvas.SetLayer(2, list)
-    else
-        m.canvas.SetLayer(1, {Color:"#BF000000", CompositionMode:"Source"})
+    ' else if m.bufferEventsExist = true
+    '     m.canvas1Items.push(bufferItems1)
+    '     m.canvas1Items.push(bufferItems2)
+    '     ? " hit ******************"
+    '     ? m.canvas1Items " canvas items ************************"
+    '     m.canvas.SetLayer(1, {Color:"#D9000000", CompositionMode:"Source"})
+    '     m.canvas.SetLayer(2, m.canvas1Items)
+    else if m.bufferEventsExist = false
+        m.canvas.SetLayer(1, {Color:"#D9000000", CompositionMode:"Source"})
         m.canvas.SetLayer(2, m.canvas1Items)
     endif
     list.Clear()
